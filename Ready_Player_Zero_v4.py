@@ -25,7 +25,7 @@ critic_optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 actor_optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
 # Directory to save and load model checkpoints
-save_dir = "checkpoints_5"
+save_dir = "checkpoints"
 os.makedirs(save_dir, exist_ok=True)
 
 #Flag for loading
