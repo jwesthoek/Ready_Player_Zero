@@ -1,0 +1,145 @@
+1)
+Added:
+epsilon = 0.5 
+epsilon = max(0.01, epsilon * 0.9999) 
+:A decaying exploration factor that will cause the agent to preform random action half of the time at the start and lower down to 1% after half the episodes are done.
+Select_action function added code:
+if prob < epsilon:
+        # Use exploration: select random action
+        action = random.randint(0, 6)
+
+2)
+Added a reward function _stuck_penalty to promote agent to move away from pipes as to get a running start for jump
+def _stuck_penalty(self):
+        #Penalty for repeated jumping without forward movement.
+        if self._x_position == self._x_position_last and self._y_position > self._y_position_last:
+            self._y_position_last = self._y_position
+            return -5  # Negative reward for being stuck
+        self._y_position_last = self._y_position
+        return 0
+
+3)
+Removed _is_stuck as it caused agents to move one unit away from pipes and then one unit back.
+
+4)
+Added _prox_x reward function that created a running average of the last 100 step's x-values and promoted a gradual movement away from pipes that the agent would get stuck on.
+    def _prox_x(self):
+        #Apply a penalty if the agent stays close to the running average.
+        if self._first_100 < 100:
+            return 0
+        average_x = self.average
+        target =  abs(average_x - self._x_position)
+        if target <= 80:
+            return -5.0 + target*0.0625
+        return 0.0
+
+5)
+Removed _pox_x as it did not properly address the getting stuck behind pipes issue.
+
+6)
+Changed observation and the according inputs to the Neural Networks form 10 observations: (coins, flag_get, life, score, stage, status, time_remaining, world, x_pos, y_pos) to 4 observations: ( x_pos, y_pos, x_vel, y_vel)
+
+7)
+Added a additional reward function call _y_reward which promotes jumping, value was divided by 4 as not to promote vertical movement over horizontal movement.
+    def _y_reward(self):
+        _reward = self._y_position - self._y_position_last
+        self._y_dis = _reward
+        if _reward < 0:
+            _reward = 0.0
+        self._y_position_last = self._y_position
+        # is typically has at most magnitude of 6, 10 is a safe bound
+        if _reward > 10:
+            return 0.0
+        _reward = _reward / 4.0 # at most will give 1.5 reward as not to promote jumping more then running
+        return _reward
+
+8)
+Removed _y_reward agent focused on jumping more then horizontal movement 
+
+9)
+Reduced the observations down to just 2: (x_pos, y_pos) 
+
+10)
+Changed architecture of the neural networks form a single layer wide network of 150 to a moderate deep network of 3 hidden layer 64,128,64 for the actor and two hidden layers 64,128 for the critic.
+
+11)
+Training loop was changed to deal with issues involving resource exhaustion that lead to early terminations.
+tf.keras.backend.clear_session() # release unused resources
+Training episodes and steps were reduced form 200 and 2500 to 50 and 1000 respectfully
+Removed the env.render line as rendering was handled by the environment so this code was redundant.
+
+12)
+Added functions for saving and loading actor/critic networks as well as there current epsilon and episode number so we can stop and finish long training later.
+def save_progress(actor, critic, episode, epsilon, save_dir=save_dir):
+    # Save model weights
+    actor.save_weights(os.path.join(save_dir, f"actor_weights_episode_latest.h5"))
+    critic.save_weights(os.path.join(save_dir, f"critic_weights_episode_latest.h5"))
+    
+    # Save additional data (epsilon, current episode)
+    training_state = {"episode": episode, "epsilon": epsilon}
+    with open(os.path.join(save_dir, f"training_state.json"), "w") as f:
+        json.dump(training_state, f)
+    
+    print(f"Progress saved at episode {episode}.")
+
+def save_progress(actor, critic, episode, epsilon, save_dir=save_dir):
+    # Save model weights
+    actor.save_weights(os.path.join(save_dir, f"actor_weights_episode_latest.h5"))
+    critic.save_weights(os.path.join(save_dir, f"critic_weights_episode_latest.h5"))
+    
+    # Save additional data (epsilon, current episode)
+    training_state = {"episode": episode, "epsilon": epsilon}
+    with open(os.path.join(save_dir, f"training_state.json"), "w") as f:
+        json.dump(training_state, f)
+    
+    print(f"Progress saved at episode {episode}.")
+
+# Function to load the model weights and training state
+def load_progress(actor, critic, save_dir=save_dir):
+    # Load model weights
+    actor_weights = os.path.join(save_dir, "actor_weights_episode_latest.h5")
+    critic_weights = os.path.join(save_dir, "critic_weights_episode_latest.h5")
+    state_file = os.path.join(save_dir, "training_state.json")
+    
+    if not os.path.exists(actor_weights) or not os.path.exists(critic_weights):
+        print("No saved weights found. Starting fresh.")
+        return 0, 0.5  # Default values for episode and epsilon
+    
+    actor.load_weights(actor_weights)
+    critic.load_weights(critic_weights)
+    
+    # Load additional data (epsilon, current episode)
+    with open(state_file, "r") as f:
+        training_state = json.load(f)
+    
+    print(f"Progress loaded from episode {training_state['episode']}.")
+    return training_state["episode"], training_state["epsilon"]
+
+13)
+Switch from the environment 'SuperMarioBros-v1' to 'SuperMarioBros-v3' as it was easier to render and faster to process, environment has simplified shapes ie all Mario and all enemies being solid colored squares/rectangles 
+
+14)
+Made changes to save every 10 episodes instead of every episodes for resource management.
+
+15)
+Reinstated time as a observations not observation space is (X_pos, Y_pos, time)
+
+16)
+Made Edits to the Neural Network. Actor now has 3 hidden layers from 2 with structure 64-128-64 from 150-150.
+Critic now has hidden layer 64-128 from 150-150.
+
+17)
+Made Edits to the Neural Network. Actor now has twice the neurons with structure 128-256-128 from 64-128-64.
+Critic now has hidden layer 128-256 from 64-128.
+
+18)
+Made edits to the Neural Network. Actor now has same neuron count spread to 5 hidden layers with structure 64-128-128-128-64.
+Critic now has hidden layer 64-128-128 from 128-256.
+
+19)
+Made edits to the Neural Network. Actor now has 7 hidden layers with structure 64-128-128-128-128-128-64.
+Critic now has hidden layer 64-128-128-128 from 64-128-128
+
+
+
+
